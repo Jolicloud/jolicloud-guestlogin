@@ -1,0 +1,49 @@
+guestlogin
+==========
+    guestlogin is a PAM module that allow guest users login.
+
+    Module creates a new user, mount a tmpdir as tmpfs to /tmp/.
+When logout module deletes guest user from system.
+
+    Guest username, home directory size, user limit and group name
+are changable from configuration file.
+
+License
+=======
+GPLv2 (please read the COPYING file)
+
+Dependencies
+============
+pam_python
+
+Installation
+============
+
+Run setup.py:
+
+python setup.py install
+
+OR
+
+Copy guestlogin.py file to /lib/security/. (Actually same directory with pam_python.so)
+Copy guestlogin.conf to /etc/security/.
+Copy pam.d/guestlogin to /etc/pam.d/. (where pam include files goes)
+---
+
+Edit necessary files in /etc/pam.d/ directory. (e.g. system-auth file for general login in Pardus)
+Add this line before pam_unix.so line:
+
+auth    include         guestlogin
+
+and add this line after including "session pam_limits.so" line
+
+session     include      guestlogin
+
+If you want to debug, add debug end of the guestlogin.py lines.
+You should add like that into guestlogin file which goes to pam.d/:
+
+auth    sufficient      pam_python.so guestlogin.py debug
+
+Usage
+=====
+After copying required files, login as guest username which is defined in configuration file (username is case sensitive). Dont give system user's username, module wont work.

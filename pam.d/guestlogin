@@ -1,0 +1,3 @@
+auth       sufficient   pam_python.so guestlogin.py
+
+session    sufficient   pam_python.so guestlogin.py

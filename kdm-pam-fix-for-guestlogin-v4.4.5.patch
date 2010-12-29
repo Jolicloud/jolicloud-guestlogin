@@ -1,0 +1,11 @@
+--- kdm/backend/client.c.orig	2010-08-25 11:00:09.546447283 +0300
++++ kdm/backend/client.c	2010-08-25 11:00:33.866438932 +0300
+@@ -474,7 +474,7 @@
+ 	 * the module needs an own conversation plugin which does not cause
+ 	 * curuser being set.
+ 	 */
+-	if (!curuser) {
++	if (!curuser || strncmp(psrv, "kde4-np", strlen("kde4-np"))) {
+ 		debug( " asking PAM for user ...\n" );
+ 		pam_get_item( pamh, PAM_USER, &pitem );
+ 		reInitErrorLog();
