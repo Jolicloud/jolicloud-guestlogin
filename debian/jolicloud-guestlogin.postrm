@@ -1,0 +1,10 @@
+#!/bin/bash
+# postrm script for jolicloud-guestlogin
+
+set -e
+
+pam-auth-update --package
+
+#DEBHELPER#
+
+exit 0

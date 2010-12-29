@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 from distutils.core import setup
 
-setup(name='guestlogin',
-      version='0.2',
+setup(name='jolicloud-guestlogin',
+      version='0.2-jolicloud0',
       description="A PAM Module for allow guest users to login.",
       long_description="The Module creates a new user and gives it to a guest user.",
       author='Mesutcan Kurt',
@@ -13,7 +13,7 @@ setup(name='guestlogin',
       platforms=["Linux"],
       data_files=[('/lib/security', ['guestlogin.py']),
                   ('/etc/security', ['guestlogin.conf']),
-                  ('/etc/pam.d/', ['pam.d/guestlogin'])
+                  ('/usr/share/pam-configs/', ['pam-configs/guestlogin'])
                   ]
      )
 

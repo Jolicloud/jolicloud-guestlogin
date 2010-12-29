@@ -1,0 +1,14 @@
+Source: jolicloud-guestlogin
+Section: jolicloud/system
+Priority: optional
+Maintainer: Arnaud Vallat <arnaud@jolicloud.org>
+Build-Depends: debhelper, python, cdbs, libpam-python
+Standards-Version: 3.9.1.0
+Homepage: http://www.jolicloud.com
+
+Package: jolicloud-guestlogin
+Architecture: any
+Depends: libpam-python
+Description: Jolicloud Guestlogin
+ This package includes a PAM module to provide dynamic guest account.
+

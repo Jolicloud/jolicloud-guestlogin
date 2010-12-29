@@ -10,12 +10,47 @@ import subprocess
 import ConfigParser
 import shutil
 import grp
+import time
+
+
+class ProcessReturnValues:
+    """ Just a container of vital information returned by a spawned process. """
+
+    returnCode = -1
+    stdOutput = ""
+    errOutput = ""
+
+    def __init__(self, rc, so, eo):
+        self.returnCode = rc
+        self.stdOutput = so
+        self.errOutput = eo
+
+
+def runProcess(args):
+    """ Helper function to launch a process and retrieve vital information. """
+
+    try:
+        childProcess = subprocess.Popen(args,
+                                        shell=True,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)
+        (stdOutput, errOutput) = childProcess.communicate()
+
+    except OSError as (errno, strerror):
+        return ProcessReturnValues(errno, "", strerror)
+
+    return ProcessReturnValues(childProcess.returncode, stdOutput, errOutput)
+
+
+
 
 def log(text):
     """ Log Function. """
 
     sys.stdout.write(text)
     sys.stdout.flush()
+
+
 
 def auth_return(pamh, level, home_dir=""):
     """ Return Function. """
@@ -40,6 +75,8 @@ def auth_return(pamh, level, home_dir=""):
     if level == 1 or level > 2:
         return pamh.PAM_AUTH_ERR
 
+
+
 def pam_sm_authenticate(pamh, flags, argv):
     """ Authentication Function.
 
@@ -55,7 +92,7 @@ def pam_sm_authenticate(pamh, flags, argv):
         pass
 
     try:
-        debugging = (argv[1] == 'debug')
+        debugging = (len(argv) > 1 and argv[1] == 'debug')
     except IndexError:
         debugging = False
 
@@ -85,8 +122,7 @@ def pam_sm_authenticate(pamh, flags, argv):
         guest_home_dir_size = 300
         guest_group = "guests"
         if debugging and pamh.get_user(None) == guest_name:
-            log("Unable to read config file at /etc/security/guestlogin.\
-conf, using default values.\n")
+            log("Unable to read config file at /etc/security/guestlogin.conf, using default values.\n")
 
     if guest_enabled == "false":
         return auth_return(pamh, 1)
@@ -98,8 +134,7 @@ conf, using default values.\n")
             i = i + 1
             if (i > guest_limit):
                 if debugging:
-                    log("Guest User limit reached! Unable to create \
-another guest user account.\n")
+                    log("Guest User limit reached! Unable to create another guest user account.\n")
                 return auth_return(pamh, -2)
 
         username = "%s%s" % (guest_name, i)
@@ -108,15 +143,14 @@ another guest user account.\n")
             grp.getgrnam(guest_group)
         except KeyError:
             if debugging:
-                log("No group found named as %s, it will be \
-created.\n" % guest_group)
-            out = subprocess.Popen(["groupadd %s" % guest_group], \
-                    shell=True, stdout=subprocess.PIPE, \
-                    stderr=subprocess.PIPE)
-            if out.wait() != 0:
+                log("No group found named as %s, it will be created.\n" % guest_group)
+
+            processRet = runProcess(["groupadd --system %s" % (guest_group)])
+            if processRet.returnCode != 0:
                 if debugging:
-                    log("Creating group %s has been failed!" % guest_group)
+                    log("'groupadd --system %s' failed errno %d '%s'" % (guest_group, processRet.returnCode, processRet.errOutput))
                 return auth_return(pamh, -1)
+
         try:
             home_dir = tempfile.mkdtemp(prefix='%s.' % username)
         except IOError:
@@ -127,12 +161,10 @@ created.\n" % guest_group)
         if debugging:
             log("%s has been created successful with mktemp.\n" % home_dir)
 
-        out = subprocess.Popen(["mount -t tmpfs -o size=%sm -o mode=711 \
-                -o noexec none %s" % (guest_home_dir_size, home_dir)], \
-                shell=True)
-        if out.wait() != 0:
+        processRet = runProcess(["mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s" % (guest_home_dir_size, home_dir)])
+        if processRet.returnCode != 0:
             if debugging:
-                log("Unable to mount %s" % home_dir)
+                log("'mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s' failed errno %d '%s'" % (guest_home_dir_size, home_dir, processRet.returnCode, processRet.errOutput))
             return auth_return(pamh, -2)
 
         if not os.path.ismount(home_dir):
@@ -143,17 +175,18 @@ created.\n" % guest_group)
         if debugging:
             log("%s has mounted as tmpfs\n" % home_dir)
 
-        out = subprocess.Popen(["useradd -m -d %s/home -g %s %s" % \
-                (home_dir, guest_group, username)], shell=True, \
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if out.wait() != 0:
+        processRet = runProcess(["useradd --system -m -d %s/home -g %s -s /bin/bash %s" % (home_dir, guest_group, username)])
+        if processRet.returnCode != 0:
             if debugging:
-                log("Unable to add user %s to system\n" % username)
+                log("'useradd --system -m -d %s/home -g %s %s' failed errno %d -s /bin/bash '%s'" % (home_dir, guest_group, username, processRet.returnCode, processRet.errOutput))
             return auth_return(pamh, -2)
+
+        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
+        if processRet.returnCode != 0 and debugging:
+            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
 
         try:
             pwd.getpwnam(username)
-
         except KeyError:
             if debugging:
                 log("User %s not found! Unable to getpwnam(%s)\n" % \
@@ -168,12 +201,13 @@ created.\n" % guest_group)
     else:
         return auth_return(pamh, -1)
 
+
+
 def pam_sm_setcred(pamh, flags, argv):
     """ Set Cred. """
 
     try:
-        debugging = (argv[1] == 'debug')
-
+        debugging = (len(argv) > 1 and argv[1] == 'debug')
     except IndexError:
         debugging = False
 
@@ -204,19 +238,26 @@ conf, using default values.\n")
     else:
         return auth_return(pamh, 0)
 
+
+
+
 def pam_sm_open_session(pamh, flags, argv):
-    """ Open Session """
+    """ Open Session"""
+
     return auth_return(pamh, 0)
 
+
+
+
 def pam_sm_close_session(pamh, flags, argv):
-    """ Close Session, if user is guest \
-destroy it but it seems quite dangerous"""
+    """ Close Session, if user is guest
+    destroy it but it seems quite dangerous"""
 
     try:
-        if (argv[1] == 'debug'):
-            debugging = True
-    except KeyError:
+        debugging = (len(argv) > 1 and argv[1] == 'debug')
+    except IndexError:
         debugging = False
+
     try:
         config = ConfigParser.ConfigParser()
         config.read('/etc/security/guestlogin.conf')
@@ -231,41 +272,68 @@ destroy it but it seems quite dangerous"""
         guest_enabled = "true"
         guest_name = "guest"
         if debugging and pamh.get_user(None).find(guest_name) != -1:
-            log("Unable to read config file at /etc/security/guestlogin.\
-conf, using default values.\n")
+            log("Unable to read config file at /etc/security/guestlogin.conf, using default values.\n")
 
     if guest_enabled == 'false':
         return auth_return(pamh, 1)
 
     if pamh.get_user(None).find(guest_name) != -1:
+
         username = pamh.get_user(None)
         _home_dir = pwd.getpwnam(username).pw_dir
         home_dir = _home_dir[0:_home_dir.rfind('/')+1]
-        out = subprocess.Popen(["skill -KILL -u %s" % username], shell=True, \
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out.wait()
 
-        if debugging:
-            log("%s's all processes are killed\n" % username)
+        # FIXME: should add a barrier to avoid infinite loop
 
+        while True:
 
-        out = subprocess.Popen(["umount %s" % home_dir], shell=True, \
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out.wait()
+            processRet = runProcess(["ps h -u %s" % (username)])
+            if processRet.returnCode != 0:
+                if debugging:
+                    log("'ps h -u %s' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
+                break
 
-        if debugging:
-            log("%s successfully unmounted\n" % home_dir)
+            processList = processRet.stdOutput.split('\n')
+            try:
+                if len(processList) == 0:
+                    break
 
-        out = subprocess.Popen(["userdel -f %s" % username], shell=True, \
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out.wait()
+                processRet = runProcess(["killall -9 -u %s" % (username)])
+                if processRet.returnCode != 0 and debugging:
+                    log("'killall -9 -u %s' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
 
-        if debugging:
-            log("user %s has been deleted\n" % username)
+            except IndexError:
+                break
 
-        shutil.rmtree(home_dir)
+            # mmm it seems there is no msleep in python...
+            # FIXME: to get ms resolution use select() like routine
+            time.sleep(1)
 
-        if debugging:
-            log("folder %s has been deleted\n" % home_dir)
+        processRet = runProcess(["umount %s" % (home_dir)])
+        if processRet.returnCode != 0 and debugging:
+            log("'umount %s' failed errno %d '%s'" % (home_dir, processRet.returnCode, processRet.errOutput))
+
+        processRet = runProcess(["umount -l %s" % (home_dir)])
+        if processRet.returnCode != 0 and debugging:
+            log("'umount -l %s' failed errno %d '%s'" % (home_dir, processRet.returnCode, processRet.errOutput))
+
+        processRet = runProcess(["find /tmp -mindepth 1 -maxdepth 1 -uid %d" % (pwd.getpwnam(username).pw_uid)])
+        if processRet.returnCode == 0:
+            fileList = processRet.stdOutput.split('\n')
+            try:
+                for fileIndex in range(len(fileList)):
+                    runProcess(["rm -rf %s" % (fileList[fileIndex])])
+            except IndexError:
+                pass
+
+        processRet = runProcess(["userdel -f %s" % (username)])
+        if processRet.returnCode != 0 and debugging:
+            log("'userdel -f %s' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
+
+        try:
+            shutil.rmtree(home_dir)
+        except OSError as (errno, sterror):
+            log("'shutil.rmtree(%s)' failed errno %d '%s'" % (home_dir, errno, strerror))
 
     return auth_return(pamh, 0)
+

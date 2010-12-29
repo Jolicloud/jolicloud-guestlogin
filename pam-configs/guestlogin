@@ -1,0 +1,11 @@
+Name: Guest Account authentication
+Default: yes
+Priority: 512
+Auth-Type: Primary
+Auth:
+	sufficient   pam_python.so guestlogin.py
+Session-Type: Primary
+Session:
+	sufficient   pam_python.so guestlogin.py
+Session-Initial:
+	sufficient   pam_python.so guestlogin.py
