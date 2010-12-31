@@ -1,0 +1,47 @@
+# vim:syntax=apparmor
+# Last Modified: Tue Jul 29 10:55:32 2008
+# Author: Martin Pitt <martin.pitt@ubuntu.com>
+
+#include <tunables/global>
+
+/usr/share/jolicloud-guestlogin/Xsession {
+  #include <abstractions/authentication>
+  #include <abstractions/nameservice>
+  #include <abstractions/wutmp>
+  /var/log/wtmp k, # bug in wutmp, https://launchpad.net/bugs/253328
+
+  / r,
+  /bin/ rmix,
+  /bin/** rmix,
+  /cdrom/ rmix,
+  /cdrom/** rmix,
+  /dev/ r,
+  /dev/** rw, # audio devices etc.
+  /dev/shm/** rmw,
+  /etc/ r,
+  /etc/** rmk,
+  /etc/gdm/Xsession ix,
+  /lib/ r,
+  /lib/** rmixk,
+  /lib32/ r,
+  /lib32/** rmixk,
+  /media/ r,
+  /media/** rmwlixk,  # we want access to USB sticks and the like
+  /opt/ r,
+  /opt/** rmixk,
+  /proc/ r,
+  /proc/** rm,
+  /sbin/ r,
+  /sbin/** rmixk,
+  /sys/ r,
+  /sys/** rm,
+  /tmp/ rw,
+  /tmp/** rwlkmix,
+  /usr/ r,
+  /usr/** rmixk,
+  /var/ r,
+  /var/** rmixk,
+  /var/tmp/ rw,
+  /var/tmp/** rwlkm,
+  /var/run/** rmwkix, # necessary for writing to sockets, etc.
+}

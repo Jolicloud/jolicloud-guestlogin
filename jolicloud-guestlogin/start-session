@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# the following script is the one which match the apparmor configuration
+# we need to exec it since slim is not executing us (start-session) but sourcing us
+exec /usr/share/jolicloud-guestlogin/Xsession "$@"

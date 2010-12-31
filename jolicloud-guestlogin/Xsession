@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Since is watching us we need to source /etc/X11/Xsession to avoid apparmor to prevent us from executing it
+
+set +e
+
+. /etc/X11/Xsession
+
+set -e
+
+exit 0

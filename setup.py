@@ -13,7 +13,10 @@ setup(name='jolicloud-guestlogin',
       platforms=["Linux"],
       data_files=[('/lib/security', ['guestlogin.py']),
                   ('/etc/security', ['guestlogin.conf']),
-                  ('/usr/share/pam-configs/', ['pam-configs/guestlogin'])
+                  ('/usr/share/pam-configs/', ['pam-configs/guestlogin']),
+                  ('/usr/share/jolicloud-guestlogin', ['jolicloud-guestlogin/start-session']),
+                  ('/usr/share/jolicloud-guestlogin', ['jolicloud-guestlogin/Xsession']),
+                  ('/etc/apparmor.d', ['apparmor.d/jolicloud-guest-session'])
                   ]
      )
 
