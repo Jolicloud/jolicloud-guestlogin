@@ -8,7 +8,7 @@ Homepage: http://www.jolicloud.com
 
 Package: jolicloud-guestlogin
 Architecture: any
-Depends: libpam-python
+Depends: libpam-python, apparmor
 Description: Jolicloud Guestlogin
  This package includes a PAM module to provide dynamic guest account.
 
