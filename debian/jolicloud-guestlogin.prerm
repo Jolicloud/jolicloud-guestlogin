@@ -1,0 +1,11 @@
+#!/bin/bash
+# prerm script for jolicloud-guestlogin
+
+set -e
+
+# tell apparmor to remove this profile right now
+apparmor_parser -R -T -W /etc/apparmor.d/jolicloud-guest-session
+
+#DEBHELPER#
+
+exit 0

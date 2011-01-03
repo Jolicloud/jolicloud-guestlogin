@@ -3,6 +3,7 @@
 
 set -e
 
+# update pam configuration files: common-auth, common-session, common-noninteractive
 pam-auth-update --package
 
 #DEBHELPER#

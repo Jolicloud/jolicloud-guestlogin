@@ -3,7 +3,11 @@
 
 set -e
 
+# update pam configuration files: common-auth, common-session, common-noninteractive
 pam-auth-update --package
+
+# tell apparmor to parse and use this new profile right now
+apparmor_parser -r -T -W /etc/apparmor.d/jolicloud-guest-session
 
 #DEBHELPER#
 
