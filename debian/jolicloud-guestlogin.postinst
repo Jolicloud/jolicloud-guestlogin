@@ -10,7 +10,7 @@ pam-auth-update --package
 apparmor_parser -r -T -W /etc/apparmor.d/jolicloud-guest-session
 
 # add guest configuration entry to slim configuration file
-if ! CONF_ENTRY=`grep guest_ /etc/slim.conf` 2>/dev/null; then
+if ! CONF_ENTRY=`grep ^guest_ /etc/slim.conf` 2>/dev/null; then
     echo "guest_group guests" >> /etc/slim.conf
     echo "login_guest_cmd exec /bin/bash -login /usr/share/jolicloud-guestlogin/start-session %session" >> /etc/slim.conf
 fi

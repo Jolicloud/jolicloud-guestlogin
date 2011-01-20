@@ -10,6 +10,17 @@
   #include <abstractions/wutmp>
   /var/log/wtmp k, # bug in wutmp, https://launchpad.net/bugs/253328
 
+  # the following lines about capabilities are there to allow
+  # chromium, google-chrome, nickel-browser to run smoothly...
+  capability setuid,
+  capability sys_admin,
+  capability chown,
+  capability fsetid,
+  capability setgid,
+  capability dac_override,
+  capability sys_chroot,
+  capability sys_ptrace,
+
   / r,
   /bin/ rmix,
   /bin/** rmix,

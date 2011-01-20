@@ -8,15 +8,14 @@ pam-auth-update --package
 
 # remove guests group
 if GUESTS_GROUP=`grep guests /etc/group` 2>/dev/null; then
-    delgroup guests
+    delgroup guests || true
 fi
 
 # remove configuration entry from slim configuration file
-tmp_file=$(mktemp)
-chmod 0600 $tmp_file
-grep -v "guest_" /etc/slim.conf > $tmp_file
-cat $tmp_file > /etc/slim.conf
-rm $tmp_file
+sed -ibackup -r \
+    -e "/^#?guest_group.*\$/d" \
+    -e "/^#?login_guest_cmd.*\$/d" \
+    /etc/slim.conf
 
 #DEBHELPER#
 
