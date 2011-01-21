@@ -51,6 +51,63 @@ def log(text):
     sys.stdout.flush()
 
 
+def get_next_guest_username(baseName, groupName, maxAccount):
+
+    if maxAccount <= 0:
+        raise KeyError
+
+    try:
+        grEntry = grp.getgrnam(groupName)
+    except KeyError:
+        # should never happen...
+        raise KeyError
+
+    allEntries = pwd.getpwall()
+
+    validGuestEntries = []
+    invalidGuestEntries = []
+
+    for pwEntry in allEntries:
+        if pwEntry.pw_name.startswith(baseName) and pwEntry.pw_gid == grEntry.gr_gid:
+            if os.path.exists(pwEntry.pw_dir) == False:
+                invalidGuestEntries.append(pwEntry)
+            else:
+                validGuestEntries.append(pwEntry)
+
+    nValidGuestEntries = len(validGuestEntries)
+    nInvalidGuestEntries = len(invalidGuestEntries)
+
+    if nValidGuestEntries > maxAccount:
+        raise KeyError
+
+    if nInvalidGuestEntries != 0:
+        invalidGuestEntries.sort()
+        guestEntry = invalidGuestEntries.pop()
+        return guestEntry.pw_name
+
+    if len(validGuestEntries) == 0:
+        return "%s1" % (baseName)
+
+    # if we're here it means nInvalidGuestEntries == 0 and nValidGuestEntries != 0
+
+    validGuestEntries.sort()
+
+    # let's find a slot within existing guest account
+
+    accountNumber = 1
+    for guestEntry in validGuestEntries:
+        if guestEntry.pw_name == "%s%d" % (baseName, accountNumber):
+            accountNumber = accountNumber + 1
+            if accountNumber > maxAccount:
+                raise KeyError
+        else:
+            return "%s%d" % (baseName, accountNumber)
+
+    if accountNumber > maxAccount:
+        raise KeyError
+
+    return "%s%d" % (baseName, accountNumber)
+
 
 def auth_return(pamh, level, home_dir=""):
     """ Return Function. """
@@ -128,17 +185,8 @@ def pam_sm_authenticate(pamh, flags, argv):
         return auth_return(pamh, 1)
 
     if pamh.get_user(None) == guest_name:
-        users = [x.pw_name for x in pwd.getpwall()]
-        i = 1
-        while "%s%s" % (guest_name, i) in users:
-            i = i + 1
-            if (i > guest_limit):
-                if debugging:
-                    log("Guest User limit reached! Unable to create another guest user account.\n")
-                return auth_return(pamh, -2)
 
-        username = "%s%s" % (guest_name, i)
-        pamh.user = username
+        # create guest group if not exist
         try:
             grp.getgrnam(guest_group)
         except KeyError:
@@ -151,11 +199,28 @@ def pam_sm_authenticate(pamh, flags, argv):
                     log("'groupadd --system %s' failed errno %d '%s'" % (guest_group, processRet.returnCode, processRet.errOutput))
                 return auth_return(pamh, -1)
 
+        if debugging:
+            log("group added\n")
+
+        # find out next guest username among existing and not existing, valid and invalid guest username
+        try:
+            username = get_next_guest_username(guest_name, guest_group, int(guest_limit))
+        except KeyError:
+            if debugging:
+                log("No more slot found for a guest acccount\n")
+            return auth_return(pamh, -2)
+
+        if debugging:
+            log("username '%s'\n" % (username))
+
+        pamh.user = username
+
+        # create and mount tmpfs home directory
         try:
             home_dir = tempfile.mkdtemp(prefix='%s.' % username)
         except IOError:
             if debugging:
-                log("No usable temporary directory name found")
+                log("No usable temporary directory name found\n")
             return auth_return(pamh, -2)
 
         if debugging:
@@ -164,33 +229,74 @@ def pam_sm_authenticate(pamh, flags, argv):
         processRet = runProcess(["mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s" % (guest_home_dir_size, home_dir)])
         if processRet.returnCode != 0:
             if debugging:
-                log("'mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s' failed errno %d '%s'" % (guest_home_dir_size, home_dir, processRet.returnCode, processRet.errOutput))
+                log("'mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s' failed errno %d '%s'\n" % (guest_home_dir_size, home_dir, processRet.returnCode, processRet.errOutput))
             return auth_return(pamh, -2)
 
         if not os.path.ismount(home_dir):
             if debugging:
-                log("Mount error! Unable to ismount(%s)" % home_dir)
+                log("Mount error! Unable to ismount(%s)\n" % home_dir)
             return auth_return(pamh, 2, home_dir)
 
         if debugging:
-            log("%s has mounted as tmpfs\n" % home_dir)
+            log("%s has been mounted as tmpfs\n" % home_dir)
 
-        processRet = runProcess(["useradd --system -m -d %s/home -g %s -s /bin/bash %s" % (home_dir, guest_group, username)])
-        if processRet.returnCode != 0:
+        # only add guest username if not recycled
+        recycledAccount = False;
+        try:
+            pwEntry = pwd.getpwnam(username)
+            recycledAccount = True;
+
             if debugging:
-                log("'useradd --system -m -d %s/home -g %s %s' failed errno %d -s /bin/bash '%s'" % (home_dir, guest_group, username, processRet.returnCode, processRet.errOutput))
-            return auth_return(pamh, -2)
+                log("Recycled Guest Account current home '%s' should be '%s/home'\n" % (pwEntry.pw_dir, home_dir))
 
-        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
-        if processRet.returnCode != 0 and debugging:
-            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
+        except:
+            processRet = runProcess(["useradd --system -m -d %s/home -g %s -s /bin/bash %s" % (home_dir, guest_group, username)])
+            if processRet.returnCode != 0:
+                if debugging:
+                    log("'useradd --system -m -d %s/home -g %s %s' failed errno %d '%s'\n" % (home_dir, guest_group, username, processRet.returnCode, processRet.errOutput))
+                return auth_return(pamh, -2)
 
+        if recycledAccount == True:
+            processRet = runProcess(["usermod -d %s/home %s" % (home_dir, username)])
+            if processRet.returnCode != 0:
+                if debugging:
+                    log("'usermod -d %s/home %s' failed errnor %d '%s'\n" % (home_dir, username, processRet.returnCode, processRet.errOutput))
+                return auth_return(pamh, -2)
+
+            try:
+                os.mkdir("%s/home" % (home_dir), 0700)
+            except OSError as (errno, strerror):
+                if debugging:
+                    log("mkdir(%s/home, 0700) failed %d '%s'\n" % (home_dir, errno, strerror))
+                return auth_return(pamh, -2)
+
+            processRet = runProcess(["cp -rT /etc/skel %s/home" % (home_dir)])
+            if processRet.returnCode != 0:
+                if debugging:
+                    log("'cp -rT /etc/skel %s/home' failed %d '%s'\n" % (home_dir, processRet.returnCode, processRet.errOutput))
+                return auth_return(pamh, -2)
+
+            try:
+                os.chown("%s/home" % (home_dir), pwEntry.pw_uid, pwEntry.pw_gid)
+            except OSError as (errno, strerror):
+                if debugging:
+                    log("chown(%s/home, %d, %d) failed %d '%s'\n" % (home_dir, pwEntry.pw_uid, pwEntry.pw_gid, processRet.returnCode, processRet.errOutput))
+                return auth_return(pamh, -2)
+
+            if debugging:
+                log("Guest Account '%s' has been recycled properly\n" % (username))
+
+        # deactivate lock screen
+#        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
+#        if processRet.returnCode != 0 and debugging:
+#            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
+
+        # make sure everything run smoothly before validating authentication
         try:
             pwd.getpwnam(username)
         except KeyError:
             if debugging:
-                log("User %s not found! Unable to getpwnam(%s)\n" % \
-                        (username, username))
+                log("User %s not found! Unable to getpwnam(%s)\n" % (username, username))
             return auth_return(pamh, 3, home_dir)
 
         if debugging:
@@ -332,8 +438,9 @@ def pam_sm_close_session(pamh, flags, argv):
 
         try:
             shutil.rmtree(home_dir)
-        except OSError as (errno, sterror):
-            log("'shutil.rmtree(%s)' failed errno %d '%s'" % (home_dir, errno, strerror))
+        except OSError as (errno, strerror):
+            if debugging:
+                log("'shutil.rmtree(%s)' failed errno %d '%s'" % (home_dir, errno, strerror))
 
     return auth_return(pamh, 0)
 

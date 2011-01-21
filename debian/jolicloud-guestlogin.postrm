@@ -6,8 +6,16 @@ set -e
 # update pam configuration files: common-auth, common-session, common-noninteractive
 pam-auth-update --package
 
-# remove guests group
-if GUESTS_GROUP=`grep guests /etc/group` 2>/dev/null; then
+# remove guest users and guests group
+if GUESTS_GROUP=`egrep '^guests:' /etc/group` 2>/dev/null; then
+
+    GUEST_USERS=`egrep '^guest[0-5]' /etc/passwd | cut -d: -f1`
+
+    for username in $GUEST_USERS
+    do
+	userdel $username || true
+    done
+
     delgroup guests || true
 fi
 
