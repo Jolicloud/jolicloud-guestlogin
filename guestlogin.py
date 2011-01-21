@@ -287,9 +287,9 @@ def pam_sm_authenticate(pamh, flags, argv):
                 log("Guest Account '%s' has been recycled properly\n" % (username))
 
         # deactivate lock screen
-#        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
-#        if processRet.returnCode != 0 and debugging:
-#            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
+        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
+        if processRet.returnCode != 0 and debugging:
+            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
 
         # make sure everything run smoothly before validating authentication
         try:
