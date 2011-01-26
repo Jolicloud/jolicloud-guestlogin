@@ -1,5 +1,5 @@
-jolicloud-guestlogin (0.2-jolicloud0) robby; urgency=low
+jolicloud-guestlogin (1.2) robby; urgency=low
 
   * Initial release.
 
- -- Arnaud Vallat <arnaud@jolicloud.org>  Wed, 22 Dec 2010 16:40:40 +0100
+ -- Arnaud Vallat <arnaud@jolicloud.org>  Wed, 26 Jan 2011 14:21:42 +0100
