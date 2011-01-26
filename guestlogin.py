@@ -13,6 +13,11 @@ import grp
 import time
 
 
+
+g_jcglRunFolder = '/var/run/jolicloud-guestlogin'
+
+
+
 class ProcessReturnValues:
     """ Just a container of vital information returned by a spawned process. """
 
@@ -49,6 +54,99 @@ def log(text):
 
     sys.stdout.write(text)
     sys.stdout.flush()
+
+
+def authenticator_service_set(debugging, username, servicename):
+
+    global g_jcglRunFolder
+
+    # ensure our basepath is valid
+
+    if os.path.exists(g_jcglRunFolder) == True:
+        if os.path.isdir(g_jcglRunFolder) == False:
+            try:
+                os.unlink(g_jcglRunFolder)
+            except OSError as (errno, strerror):
+                if debugging:
+                    log("os.unlink(%s) failed errno %d '%s'\n" % (g_jcglRunFolder, errno, strerror))
+                return False
+
+            try:
+                os.mkdir(g_jcglRunFolder, 0755)
+            except OSError as (errno, strerror):
+                if debugging:
+                    log("os.mkdir(%s, 0755) failed errno %d '%s'\n" % (g_jcglRunFolder, errno, strerror))
+                return False
+    else:
+        try:
+            os.mkdir(g_jcglRunFolder, 0755)
+        except OSError as (errno, strerror):
+            if debugging:
+                log("os.mkdir(%s, 0755) failed errno %d '%s'\n" % (g_jcglRunFolder, errno, strerror))
+            return False
+
+    path = os.path.join(g_jcglRunFolder, username)
+
+    try:
+        output = open(path, 'w')
+    except IOError as (errno, strerror):
+        if debugging:
+            log("open(%s, 'w') failed errno %d '%s'\n" % (path, errno, strerror))
+        return False
+
+    try:
+        output.write(servicename)
+        output.flush()
+        output.close()
+    except IOError as (errno, strerror):
+        if debugging:
+            log("I/O Error (write, flush, close) on '%s' errno %d '%s'\n" % (path, errno, strerror))
+        return False
+
+    return True
+
+
+def authenticator_service_get(debugging, username):
+
+    global g_jcglRunFolder
+
+    path = os.path.join(g_jcglRunFolder, username)
+
+    if debugging:
+        log("id %s\n" % (os.getuid()))
+
+    try:
+        input = open(path, 'r')
+    except IOError as (errno, strerror):
+        if debugging:
+            log("open(%s, 'r') failed errno %d '%s'\n" % (path, errno, strerror))
+        return ""
+
+    try:
+        servicename = input.read()
+        input.close()
+    except IOError as (errno, strerror):
+        if debugging:
+            log("I/O Error (read, close) on '%s' errno %d '%s'\n" % (path, errno, strerror))
+        return ""
+
+    return servicename
+
+
+def authenticator_service_reset(debugging, username):
+
+    global g_jcglRunFolder
+
+    path = os.path.join(g_jcglRunFolder, username)
+
+    try:
+        os.unlink(path)
+    except OSError as (errno, strerror):
+        if debugging:
+            log("os.unlink(%s) failed errno %d '%s'\n" % (path, errno, strerror))
+        return False
+
+    return True
 
 
 def get_next_guest_username(baseName, groupName, maxAccount):
@@ -113,7 +211,10 @@ def auth_return(pamh, level, home_dir=""):
     """ Return Function. """
 
     if level >= 2:
-        shutil.rmtree(home_dir)
+        try:
+            shutil.rmtree(home_dir)
+        except OSError:
+            pass
 
     if level >= 3:
         out = subprocess.Popen(["umount %s" % home_dir], shell=True, \
@@ -226,10 +327,10 @@ def pam_sm_authenticate(pamh, flags, argv):
         if debugging:
             log("%s has been created successful with mktemp.\n" % home_dir)
 
-        processRet = runProcess(["mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s" % (guest_home_dir_size, home_dir)])
+        processRet = runProcess(["mount -t tmpfs -o size=20m -o mode=711 none %s" % (home_dir)])
         if processRet.returnCode != 0:
             if debugging:
-                log("'mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s' failed errno %d '%s'\n" % (guest_home_dir_size, home_dir, processRet.returnCode, processRet.errOutput))
+                log("'mount -t tmpfs -o mode=711 none %s' failed errno %d '%s'\n" % (home_dir, processRet.returnCode, processRet.errOutput))
             return auth_return(pamh, -2)
 
         if not os.path.ismount(home_dir):
@@ -254,42 +355,42 @@ def pam_sm_authenticate(pamh, flags, argv):
             if processRet.returnCode != 0:
                 if debugging:
                     log("'useradd --system -m -d %s/home -g %s %s' failed errno %d '%s'\n" % (home_dir, guest_group, username, processRet.returnCode, processRet.errOutput))
-                return auth_return(pamh, -2)
+                return auth_return(pamh, 3, home_dir)
+
+        processRet = runProcess(["chown %s:%s %s" % (username, guest_group, home_dir)])
+        if processRet.returnCode != 0:
+            if debugging:
+                log("'chown %s:%s %s' failed %d '%s'\n" % (username, guest_group, home_dir, processRet.returnCode, processRet.errOutput))
+            return auth_return(pamh, 3, home_dir)
 
         if recycledAccount == True:
             processRet = runProcess(["usermod -d %s/home %s" % (home_dir, username)])
             if processRet.returnCode != 0:
                 if debugging:
                     log("'usermod -d %s/home %s' failed errnor %d '%s'\n" % (home_dir, username, processRet.returnCode, processRet.errOutput))
-                return auth_return(pamh, -2)
+                return auth_return(pamh, 3, home_dir)
 
             try:
                 os.mkdir("%s/home" % (home_dir), 0700)
             except OSError as (errno, strerror):
                 if debugging:
                     log("mkdir(%s/home, 0700) failed %d '%s'\n" % (home_dir, errno, strerror))
-                return auth_return(pamh, -2)
+                return auth_return(pamh, 3, home_dir)
 
             processRet = runProcess(["cp -rT /etc/skel %s/home" % (home_dir)])
             if processRet.returnCode != 0:
                 if debugging:
                     log("'cp -rT /etc/skel %s/home' failed %d '%s'\n" % (home_dir, processRet.returnCode, processRet.errOutput))
-                return auth_return(pamh, -2)
-
-            try:
-                os.chown("%s/home" % (home_dir), pwEntry.pw_uid, pwEntry.pw_gid)
-            except OSError as (errno, strerror):
-                if debugging:
-                    log("chown(%s/home, %d, %d) failed %d '%s'\n" % (home_dir, pwEntry.pw_uid, pwEntry.pw_gid, processRet.returnCode, processRet.errOutput))
-                return auth_return(pamh, -2)
+                return auth_return(pamh, 3, home_dir)
 
             if debugging:
                 log("Guest Account '%s' has been recycled properly\n" % (username))
 
-        # deactivate lock screen
-        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
-        if processRet.returnCode != 0 and debugging:
-            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
+        processRet = runProcess(["chown -R %s:%s %s" % (username, guest_group, home_dir)])
+        if processRet.returnCode != 0:
+            if debugging:
+                log("'chown -R %s:%s %s' failed %d '%s'\n" % (username, guest_group, home_dir, processRet.returnCode, processRet.errOutput))
+            return auth_return(pamh, 3, home_dir)
 
         # make sure everything run smoothly before validating authentication
         try:
@@ -298,6 +399,16 @@ def pam_sm_authenticate(pamh, flags, argv):
             if debugging:
                 log("User %s not found! Unable to getpwnam(%s)\n" % (username, username))
             return auth_return(pamh, 3, home_dir)
+
+        if authenticator_service_set(debugging, username, pamh.service) == False:
+            if debugging:
+                log("Unable to update authenticator for username '%s'\n" % (username))
+            return auth_return(pamh, 3, home_dir)
+
+        # deactivate lock screen
+        processRet = runProcess(["su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'" % (username)])
+        if processRet.returnCode != 0 and debugging:
+            log("'su %s -p -c 'gconftool-2 --set --type bool /desktop/gnome/lockdown/disable_lock_screen True'' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
 
         if debugging:
             log("%s has been created successfully\n" % username)
@@ -332,8 +443,7 @@ def pam_sm_setcred(pamh, flags, argv):
         guest_name = "guest"
 
         if debugging and pamh.get_user(None) == guest_name:
-            log("Unable to read config file at /etc/security/guestlogin.\
-conf, using default values.\n")
+            log("Unable to read config file at /etc/security/guestlogin.conf, using default values.\n")
 
     if guest_enabled == "false":
         return auth_return(pamh, 1)
@@ -343,7 +453,6 @@ conf, using default values.\n")
 
     else:
         return auth_return(pamh, 0)
-
 
 
 
@@ -386,6 +495,16 @@ def pam_sm_close_session(pamh, flags, argv):
     if pamh.get_user(None).find(guest_name) != -1:
 
         username = pamh.get_user(None)
+
+        servicename = authenticator_service_get(debugging, username)
+        if servicename == "":
+            if debugging:
+                log("Unable to retrieve service name for '%s' (pam_sm_close_session called from service '%s'). Performing closing session...\n" % (username, pamh.service))
+        elif servicename != pamh.service:
+            if debugging:
+                log("pam_sm_close_session called from service '%s'. Initial service was '%s'. Username '%s'. Skipping closing session\n" % (pamh.service, servicename, username))
+            return auth_return(pamh, 0)
+
         _home_dir = pwd.getpwnam(username).pw_dir
         home_dir = _home_dir[0:_home_dir.rfind('/')+1]
 
@@ -396,7 +515,7 @@ def pam_sm_close_session(pamh, flags, argv):
             processRet = runProcess(["ps h -u %s" % (username)])
             if processRet.returnCode != 0:
                 if debugging:
-                    log("'ps h -u %s' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
+                    log("'ps h -u %s' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
                 break
 
             processList = processRet.stdOutput.split('\n')
@@ -406,7 +525,7 @@ def pam_sm_close_session(pamh, flags, argv):
 
                 processRet = runProcess(["killall -9 -u %s" % (username)])
                 if processRet.returnCode != 0 and debugging:
-                    log("'killall -9 -u %s' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
+                    log("'killall -9 -u %s' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
 
             except IndexError:
                 break
@@ -415,13 +534,9 @@ def pam_sm_close_session(pamh, flags, argv):
             # FIXME: to get ms resolution use select() like routine
             time.sleep(1)
 
-        processRet = runProcess(["umount %s" % (home_dir)])
-        if processRet.returnCode != 0 and debugging:
-            log("'umount %s' failed errno %d '%s'" % (home_dir, processRet.returnCode, processRet.errOutput))
-
         processRet = runProcess(["umount -l %s" % (home_dir)])
         if processRet.returnCode != 0 and debugging:
-            log("'umount -l %s' failed errno %d '%s'" % (home_dir, processRet.returnCode, processRet.errOutput))
+            log("'umount -l %s' failed errno %d '%s'\n" % (home_dir, processRet.returnCode, processRet.errOutput))
 
         processRet = runProcess(["find /tmp -mindepth 1 -maxdepth 1 -uid %d" % (pwd.getpwnam(username).pw_uid)])
         if processRet.returnCode == 0:
@@ -434,13 +549,15 @@ def pam_sm_close_session(pamh, flags, argv):
 
         processRet = runProcess(["userdel -f %s" % (username)])
         if processRet.returnCode != 0 and debugging:
-            log("'userdel -f %s' failed errno %d '%s'" % (username, processRet.returnCode, processRet.errOutput))
+            log("'userdel -f %s' failed errno %d '%s'\n" % (username, processRet.returnCode, processRet.errOutput))
 
         try:
             shutil.rmtree(home_dir)
         except OSError as (errno, strerror):
             if debugging:
-                log("'shutil.rmtree(%s)' failed errno %d '%s'" % (home_dir, errno, strerror))
+                log("'shutil.rmtree(%s)' failed errno %d '%s'\n" % (home_dir, errno, strerror))
+
+        authenticator_service_reset(debugging, username)
 
     return auth_return(pamh, 0)
 
