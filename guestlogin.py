@@ -327,10 +327,10 @@ def pam_sm_authenticate(pamh, flags, argv):
         if debugging:
             log("%s has been created successful with mktemp.\n" % home_dir)
 
-        processRet = runProcess(["mount -t tmpfs -o size=20m -o mode=711 none %s" % (home_dir)])
+        processRet = runProcess(["mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s" % (guest_home_dir_size, home_dir)])
         if processRet.returnCode != 0:
             if debugging:
-                log("'mount -t tmpfs -o mode=711 none %s' failed errno %d '%s'\n" % (home_dir, processRet.returnCode, processRet.errOutput))
+                log("'mount -t tmpfs -o size=%sm -o mode=711 -o noexec none %s' failed errno %d '%s'\n" % (guest_home_dir_size, home_dir, processRet.returnCode, processRet.errOutput))
             return auth_return(pamh, -2)
 
         if not os.path.ismount(home_dir):
