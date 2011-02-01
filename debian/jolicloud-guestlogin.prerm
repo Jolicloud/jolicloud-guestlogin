@@ -4,7 +4,7 @@
 set -e
 
 # tell apparmor to remove this profile right now
-apparmor_parser -R -T -W /etc/apparmor.d/jolicloud-guest-session
+apparmor_parser -R -T -W /etc/apparmor.d/jolicloud-guest-session || true
 
 #DEBHELPER#
 

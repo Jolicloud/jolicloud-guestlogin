@@ -7,7 +7,7 @@ set -e
 pam-auth-update --package
 
 # tell apparmor to parse and use this new profile right now
-apparmor_parser -r -T -W /etc/apparmor.d/jolicloud-guest-session
+apparmor_parser -r -T -W /etc/apparmor.d/jolicloud-guest-session || true
 
 # add guest configuration entry to slim configuration file
 if ! CONF_ENTRY=`grep ^guest_ /etc/slim.conf` 2>/dev/null; then
