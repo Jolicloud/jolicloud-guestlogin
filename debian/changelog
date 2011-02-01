@@ -1,3 +1,9 @@
+jolicloud-guestlogin (1.2.1) robby; urgency=low
+
+  * Prevent a failure in case apparmor is not yet installed
+
+ -- Arnaud Vallat <arnaud@jolicloud.org>  Tue, 01 Feb 2011 11:21:02 +0100
+
 jolicloud-guestlogin (1.2) robby; urgency=low
 
   * Initial release.
