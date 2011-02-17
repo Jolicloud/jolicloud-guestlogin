@@ -9,11 +9,69 @@ pam-auth-update --package
 # tell apparmor to parse and use this new profile right now
 apparmor_parser -r -T -W /etc/apparmor.d/jolicloud-guest-session || true
 
-# add guest configuration entry to slim configuration file
-if ! CONF_ENTRY=`grep ^guest_ /etc/slim.conf` 2>/dev/null; then
-    echo "guest_group guests" >> /etc/slim.conf
-    echo "login_guest_cmd exec /bin/bash -login /usr/share/jolicloud-guestlogin/start-session %session" >> /etc/slim.conf
+# add guest configuration entry to slim configuration file if slim is installed
+if [ -e /etc/slim.conf ]; then
+    if ! CONF_ENTRY=`grep ^guest_ /etc/slim.conf` 2>/dev/null; then
+        echo "guest_group guests" >> /etc/slim.conf
+        echo "login_guest_cmd exec /bin/bash -login /usr/share/jolicloud-guestlogin/start-session %session" >> /etc/slim.conf
+    fi
 fi
+
+# add guest configuration entry to jolicloud-displaymanager configuration folder if it is installed
+if [ -e /etc/jolicloud-displaymanager ]; then
+    cat << EOF > /etc/jolicloud-displaymanager/10jolicloud-guestlogin.postinst
+[guestlogin]
+enabled=true
+login=guest
+group=guests
+logincmd=exec /bin/bash -login /usr/share/jolicloud-guestlogin/start-session
+EOF
+fi
+
+# Migrate NetworkManager current user connections to system connections
+python << EOF || true
+import os
+import dbus
+import ConfigParser
+from twisted.internet import glib2reactor
+glib2reactor.install()
+from dbus.mainloop.glib import DBusGMainLoop
+DBusGMainLoop(set_as_default=True)
+from twisted.internet import reactor
+
+def migrate_user_to_system_connections():
+	try:
+		bus = dbus.SystemBus()
+		user_settings = bus.get_object('org.freedesktop.NetworkManagerUserSettings', '/org/freedesktop/NetworkManagerSettings')
+		system_settings = bus.get_object('org.freedesktop.NetworkManagerSystemSettings', '/org/freedesktop/NetworkManagerSettings')
+		for user_connection in user_settings.ListConnections(dbus_interface='org.freedesktop.NetworkManagerSettings'):
+			connection = bus.get_object('org.freedesktop.NetworkManagerUserSettings', user_connection)
+			settings = connection.GetSettings(dbus_interface='org.freedesktop.NetworkManagerSettings.Connection')
+			if settings.has_key('802-11-wireless') and settings['802-11-wireless'].has_key('security'):
+				secrets = connection.GetSecrets(
+					settings['802-11-wireless']['security'],
+					[],
+					False,
+					dbus_interface='org.freedesktop.NetworkManagerSettings.Connection.Secrets'
+				)
+				for key in secrets['802-11-wireless-security']:
+					settings['802-11-wireless-security'][key] = secrets['802-11-wireless-security'][key]
+			system_settings.AddConnection(settings, dbus_interface='org.freedesktop.NetworkManagerSettings')
+			connection.Delete(dbus_interface='org.freedesktop.NetworkManagerSettings.Connection')
+		reactor.stop()
+	except Exception:
+		reactor.stop()
+
+config = ConfigParser.RawConfigParser()
+config_base = '/etc/jolicloud-displaymanager'
+for f in sorted(os.listdir(config_base)):
+    if not f.startswith('.') and not f.endswith('~') and not f.endswith('.oem'):
+        config.read(os.path.join(config_base, f))
+
+if config.has_section('guestmode') and config.getboolean('guestmode', 'enabled') == True:
+	reactor.callLater(0, migrate_user_to_system_connections)
+	reactor.run()
+EOF
 
 #DEBHELPER#
 
