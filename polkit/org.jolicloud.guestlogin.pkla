@@ -1,0 +1,6 @@
+[Udisks for guests]
+Identity=unix-group:guests
+Action=org.freedesktop.udisks.*-system-internal
+ResultAny=no
+ResultInactive=no
+ResultActive=no

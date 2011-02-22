@@ -16,6 +16,7 @@ setup(name='jolicloud-guestlogin',
                   ('/etc/apparmor.d', ['etc/apparmor.d/jolicloud-guest-session']),
                   ('/usr/share/pam-configs', ['pam-configs/guestlogin']),
                   ('/usr/share/jolicloud-guestlogin', ['jolicloud-guestlogin/start-session', 'jolicloud-guestlogin/Xsession']),
+                  ('/var/lib/polkit-1/localauthority/90-mandatory.d', ['polkit/org.jolicloud.guestlogin.pkla']),
                   ]
      )
 
