@@ -1,3 +1,9 @@
+jolicloud-guestlogin (1.2.3) robby; urgency=low
+
+  * Switched to debhelper version 7
+
+ -- Jérémy Bethmont <jerem@jolicloud.org>  Tue, 22 Feb 2011 17:16:22 +0100
+
 jolicloud-guestlogin (1.2.2) robby; urgency=low
 
   * Added jolicloud-displaymanager support and migrate NetworkManager
