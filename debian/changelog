@@ -1,3 +1,11 @@
+jolicloud-guestlogin (1.2.2) robby; urgency=low
+
+  * Added jolicloud-displaymanager support and migrate NetworkManager
+    current user connections to system connections
+  * Added PolicyKit configuration for guests
+
+ -- Jérémy Bethmont <jerem@jolicloud.org>  Tue, 22 Feb 2011 17:12:55 +0100
+
 jolicloud-guestlogin (1.2.1) robby; urgency=low
 
   * Prevent a failure in case apparmor is not yet installed
