@@ -1,49 +1,43 @@
-guestlogin
-==========
-    guestlogin is a PAM module that allow guest users login.
+About Jolicloud-GuestLogin
+------------------------------
 
-    Module creates a new user, mount a tmpdir as tmpfs to /tmp/.
-When logout module deletes guest user from system.
+This software is part of Joli OS. It is a fork of the project guestlogin (http://svn.pardus.org.tr/uludag/trunk/playground/intern/guestlogin/) originally written by Mesutcan Kurt (mesutcank [at] gmail [dot] com).
 
-    Guest username, home directory size, user limit and group name
-are changable from configuration file.
 
-License
-=======
-GPLv2 (please read the COPYING file)
+About Joli OS
+-------------
 
-Dependencies
-============
-pam_python
+Joli OS is a free and open source Linux-based operating system developed and distributed by Jolicloud for computing devices.
 
-Installation
-============
 
-Run setup.py:
 
-python setup.py install
+Resources
+---------
 
-OR
+Website: http://www.jolicloud.com
+Project Wiki: https://github.com/jolicloud/jolicloud-guestlogin/wiki
+Project Issue Tracker: https://github.com/jolicloud/jolicloud-guestlogin/issues
+Joli OS Developer Google Group: http://groups.google.com/group/joli-dev
+Jolicloud IRC Channel: #jolicloud on irc.freenode.net
 
-Copy guestlogin.py file to /lib/security/. (Actually same directory with pam_python.so)
-Copy guestlogin.conf to /etc/security/.
-Copy pam.d/guestlogin to /etc/pam.d/. (where pam include files goes)
----
 
-Edit necessary files in /etc/pam.d/ directory. (e.g. system-auth file for general login in Pardus)
-Add this line before pam_unix.so line:
+Copyright
+---------
 
-auth    include         guestlogin
 
-and add this line after including "session pam_limits.so" line
+Joli OS is copyrighted by Jolicloud SAS and others.
+  
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 dated June, 1991.
 
-session     include      guestlogin
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-If you want to debug, add debug end of the guestlogin.py lines.
-You should add like that into guestlogin file which goes to pam.d/:
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+   02110-1301, USA.
 
-auth    sufficient      pam_python.so guestlogin.py debug
-
-Usage
-=====
-After copying required files, login as guest username which is defined in configuration file (username is case sensitive). Dont give system user's username, module wont work.

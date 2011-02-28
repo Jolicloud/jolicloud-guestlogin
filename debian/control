@@ -5,10 +5,11 @@ Maintainer: Arnaud Vallat <arnaud@jolicloud.org>
 Build-Depends: debhelper, python (>=2.6), cdbs, libpam-python
 Standards-Version: 3.9.1.0
 Homepage: http://www.jolicloud.com
+Vcs-Git: git://github.com/jolicloud/jolicloud-guestlogin.git
+Vcs-Browser: https://github.com/jolicloud/jolicloud-guestlogin
 
 Package: jolicloud-guestlogin
 Architecture: any
 Depends: python (>=2.6), libpam-python, apparmor
 Description: Jolicloud Guestlogin
  This package includes a PAM module to provide dynamic guest account.
-
