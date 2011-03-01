@@ -20,10 +20,16 @@ if GUESTS_GROUP=`egrep '^guests:' /etc/group` 2>/dev/null; then
 fi
 
 # remove configuration entry from slim configuration file
-sed -ibackup -r \
-    -e "/^#?guest_group.*\$/d" \
-    -e "/^#?login_guest_cmd.*\$/d" \
-    /etc/slim.conf
+if [ -f /etc/slim.conf ]; then
+    sed -ibackup -r \
+        -e "/^#?guest_group.*\$/d" \
+        -e "/^#?login_guest_cmd.*\$/d" \
+        /etc/slim.conf
+fi
+
+if [ -f /etc/jolicloud-displaymanager/10jolicloud-guestlogin.postinst ]; then
+    rm -f /etc/jolicloud-displaymanager/10jolicloud-guestlogin.postinst
+fi
 
 #DEBHELPER#
 
